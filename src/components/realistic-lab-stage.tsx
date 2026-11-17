@@ -259,7 +259,7 @@ function Parameter({ label, symbol, value, min, max, step, unit, onChange }: {
   );
 }
 
-function PendulumExperiment() {
+export function PendulumExperiment() {
   const [length, setLength] = useState(0.9);
   const [mass, setMass] = useState(0.5);
   const [maxAngle, setMaxAngle] = useState(12);
