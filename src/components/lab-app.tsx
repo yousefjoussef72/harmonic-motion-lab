@@ -1,863 +1,354 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Pause, Play, RotateCcw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Activity,
+  ArrowDown,
+  ArrowLeftRight,
+  BookOpen,
+  CheckCircle2,
+  ChevronDown,
+  CircleHelp,
+  Gauge,
+  Lightbulb,
+  Pause,
+  Play,
+  RotateCcw,
+  Sparkles,
+  Waves,
+} from "lucide-react";
 import { SpringStage } from "@/components/spring-stage";
 import {
-  LEVELS,
   fmt,
   freqOf,
   omegaOf,
   periodOf,
-  phaseName,
   stateAt,
   type Level,
 } from "@/lib/physics";
 
-const NAV = [
-  ["lab", "المعمل"],
-  ["symbols", "الرموز"],
-  ["hooke", "هوك"],
-  ["period", "الزمن"],
-  ["cycle", "دورة"],
-  ["energy", "الطاقة"],
-  ["examples", "أمثلة"],
-  ["whatif", "ماذا يحدث"],
-  ["origins", "منين القانون"],
-  ["quiz", "تدريب"],
-] as const;
+type Tab = "lesson" | "laws" | "practice";
 
-type Layer = { take: string; weak: string; strong: string; sharp: string };
-
-function body(level: Level, item: Layer) {
-  if (level === "weak") return item.weak;
-  if (level === "strong") return item.strong;
-  return item.sharp;
-}
+const chapters = [
+  { id: "idea", title: "يعني إيه حركة توافقية؟", tag: "الفكرة", icon: Lightbulb },
+  { id: "hooke", title: "قانون هوك وقوة الإرجاع", tag: "القوة", icon: ArrowLeftRight },
+  { id: "period", title: "الزمن الدوري والتردد", tag: "الزمن", icon: Activity },
+  { id: "energy", title: "الطاقة في أثناء الحركة", tag: "الطاقة", icon: Gauge },
+];
 
 export function LabApp() {
-  const [level, setLevel] = useState<Level>("weak");
   const [m, setM] = useState(0.2);
   const [k, setK] = useState(80);
-  const [A, setA] = useState(0.08);
-  const [phase, setPhase] = useState(0);
+  const [A, setA] = useState(8);
+  const [angle, setAngle] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [ruler, setRuler] = useState(20);
-  const [metroM, setMetroM] = useState(12000);
-  const [metroK, setMetroK] = useState(180000);
+  const [tab, setTab] = useState<Tab>("lesson");
+  const [level, setLevel] = useState<Level>("weak");
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const playRef = useRef(playing);
   playRef.current = playing;
 
   const T = periodOf(k, m);
-  const sim = stateAt(k, m, A, (phase / (2 * Math.PI)) * T);
+  const omega = omegaOf(k, m);
+  const sim = stateAt(k, m, A / 100, (angle / (2 * Math.PI)) * T);
+  const percent = Math.round((angle / (2 * Math.PI)) * 100);
+  const currentPosition = angle < 0.25 * Math.PI || angle > 1.75 * Math.PI
+    ? "أقصى إزاحة موجبة"
+    : angle < 0.75 * Math.PI
+      ? "يتحرك ناحية الاتزان"
+      : angle < 1.25 * Math.PI
+        ? "أقصى إزاحة سالبة"
+        : "راجع ناحية الاتزان";
 
   useEffect(() => {
     let frame = 0;
-    let last = performance.now();
-    const loop = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-      if (playRef.current) {
-        const omega = omegaOf(k, m);
-        setPhase((p) => (p + omega * dt) % (2 * Math.PI));
-      }
-      frame = requestAnimationFrame(loop);
+    let previous = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min((now - previous) / 1000, 0.04);
+      previous = now;
+      if (playRef.current) setAngle((value) => (value + omega * dt) % (2 * Math.PI));
+      frame = requestAnimationFrame(tick);
     };
-    frame = requestAnimationFrame(loop);
+    frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [k, m]);
+  }, [omega]);
 
-  const place = phaseName(sim.phase, sim.T);
+  const quiz = [
+    { q: "أين تكون سرعة الجسم أكبر ما يمكن؟", options: ["عند أقصى إزاحة", "عند موضع الاتزان", "في كل المواضع متساوية"], answer: 1, why: "عند الاتزان تكون طاقة الحركة أكبر ما يمكن، لذلك السرعة عظمى." },
+    { q: "إذا زادت الكتلة إلى أربعة أمثالها، فإن الزمن الدوري:", options: ["يتضاعف", "يزيد أربعة أمثال", "يقل للنصف"], answer: 0, why: "T يتناسب مع الجذر التربيعي للكتلة؛ √4 = 2." },
+    { q: "إذا تضاعفت السعة، فإن الطاقة الكلية:", options: ["تتضاعف", "تزيد أربعة أمثال", "لا تتغير"], answer: 1, why: "E = ½kA²، لذلك مضاعفة A تجعل الطاقة أربعة أمثال." },
+    { q: "عند أقصى إزاحة تكون قوة الإرجاع:", options: ["صفر", "عظمى", "غير موجودة"], answer: 1, why: "مقدار القوة يساوي k|x|، ويبلغ أقصاه عند |x| = A." },
+  ];
+  const score = quiz.reduce((sum, item, i) => sum + (quizAnswers[i] === item.answer ? 1 : 0), 0);
 
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-20 border-b border-line bg-bg/95 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-sm text-teal">تانية بكالوريا · فيزياء</p>
-              <h1 className="text-xl font-semibold">معمل الحركة التوافقية</h1>
+    <div className="min-h-screen pb-16">
+      <header className="hero-shell relative overflow-hidden">
+        <div className="hero-orbit orbit-one" />
+        <div className="hero-orbit orbit-two" />
+        <div className="relative z-10 mx-auto max-w-6xl px-4 pb-10 pt-7 sm:px-6 sm:pb-14 sm:pt-10">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm text-white/75">
+              <span className="brand-mark"><Waves size={18} /></span>
+              <span>مختبر الفيزياء التفاعلي</span>
             </div>
-            <LevelSwitch level={level} onChange={setLevel} />
+            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-white/80">الصف الثاني الثانوي</span>
           </div>
-          <nav className="flex gap-2 overflow-x-auto pb-1">
-            {NAV.map(([id, label]) => (
-              <a
-                key={id}
-                href={`#${id}`}
-                className="shrink-0 rounded-full border border-line bg-surface px-3 py-2 text-sm"
-              >
-                {label}
-              </a>
-            ))}
-          </nav>
+          <div className="mt-10 max-w-3xl">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-teal-200/20 bg-teal-300/10 px-3 py-1.5 text-xs font-medium text-teal-100">
+              <Sparkles size={14} /> افهمها بالتجربة، مش بالحفظ
+            </div>
+            <h1 className="max-w-2xl text-3xl font-bold leading-tight text-white sm:text-5xl">
+              الحركة التوافقية البسيطة
+              <span className="mt-2 block text-teal-200">خلّي الفيزياء تتحرك قدامك.</span>
+            </h1>
+            <p className="mt-5 max-w-xl text-sm leading-8 text-white/70 sm:text-base">
+              درس تفاعلي يجمع الشرح المبسّط، والرسوم المتحركة، والمعمل الذي تتحكم فيه بنفسك، ثم يختبر فهمك خطوة بخطوة.
+            </p>
+          </div>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <a href="#lab" className="hero-button"><Play size={16} fill="currentColor" /> ابدأ التجربة</a>
+            <a href="#course" className="hero-link">اذهب إلى شرح الدرس <ArrowDown size={15} /></a>
+          </div>
+          <div className="mt-12 grid max-w-2xl grid-cols-3 gap-3">
+            <HeroMetric value="01" label="افهم الفكرة" />
+            <HeroMetric value="02" label="جرّب بنفسك" />
+            <HeroMetric value="03" label="اختبر فهمك" />
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6">
-        <section id="lab" className="rounded-2xl border border-line bg-surface p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <main className="mx-auto flex max-w-6xl flex-col gap-7 px-4 py-7 sm:px-6 sm:py-10">
+        <section id="lab" className="lab-panel scroll-mt-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold">السوستة قدامك</h2>
-              <p className="text-sm text-muted">زوّد أو نقص، وشوف القوة والسرعة والطاقة في نفس اللحظة.</p>
+              <div className="section-kicker"><span className="live-dot" /> تجربة مباشرة</div>
+              <h2 className="mt-2 text-2xl font-bold">معمل النابض والكتلة</h2>
+              <p className="mt-2 max-w-xl text-sm leading-7 text-muted">غيّر الكتلة أو صلابة النابض أو السعة، وشاهد كيف تتغير الحركة والقوة والطاقة لحظيًا.</p>
             </div>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setPlaying((p) => !p)}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full bg-teal px-4 text-surface"
-              >
-                {playing ? <Pause size={16} /> : <Play size={16} />}
+              <button className="control-primary" onClick={() => setPlaying((v) => !v)} type="button">
+                {playing ? <Pause size={17} /> : <Play size={17} fill="currentColor" />}
                 {playing ? "إيقاف" : "تشغيل"}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPlaying(false);
-                  setPhase(0);
-                }}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line px-4"
-              >
-                <RotateCcw size={16} />
-                الطرف
+              <button className="control-quiet" type="button" onClick={() => { setPlaying(false); setAngle(0); }}>
+                <RotateCcw size={16} /> إعادة
               </button>
             </div>
           </div>
-          <div className="overflow-hidden rounded-xl border border-line">
-            <SpringStage x={sim.x} A={A} F={sim.F} v={sim.v} />
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-[1.5fr_0.8fr]">
+            <div className="visual-well">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <span className="visual-label"><span className="live-dot" /> المحاكاة الحية</span>
+                <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-slate-600">{currentPosition}</span>
+              </div>
+              <SpringStage x={sim.x} A={A / 100} F={sim.F} v={sim.v} />
+              <div className="mt-2 flex items-center justify-between text-xs text-muted">
+                <span>موضع الجسم خلال الدورة</span>
+                <span dir="ltr" className="font-semibold text-teal">{percent}%</span>
+              </div>
+              <input aria-label="موضع الجسم في الدورة" type="range" min="0" max="1000" value={Math.round(angle / (2 * Math.PI) * 1000)} onChange={(e) => { setPlaying(false); setAngle(Number(e.target.value) / 1000 * 2 * Math.PI); }} className="w-full" dir="ltr" />
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <Parameter label="كتلة الجسم" symbol="m" value={m} unit="kg" min={0.1} max={2} step={0.05} onChange={(v) => setM(v)} />
+              <Parameter label="صلابة النابض" symbol="k" value={k} unit="N/m" min={10} max={200} step={1} onChange={(v) => setK(v)} />
+              <Parameter label="سعة الاهتزاز" symbol="A" value={A} unit="cm" min={2} max={12} step={0.5} onChange={(v) => setA(v)} />
+              <div className="rounded-2xl bg-teal-950 p-4 text-white">
+                <div className="flex items-center gap-2 text-xs text-teal-200"><Lightbulb size={15} /> جرّب ولاحظ</div>
+                <p className="mt-2 text-sm leading-7 text-white/85">
+                  {m > 1.2 ? "زادت الكتلة؛ لاحظ أن الاهتزاز أصبح أبطأ." : k > 140 ? "النابض أصبح أصلب؛ لاحظ أن الاهتزاز أصبح أسرع." : A > 10 ? "زادت السعة؛ زادت الطاقة، لكن الزمن الدوري لم يتغير." : "ابدأ التشغيل، ثم غيّر قيمة واحدة كل مرة ولاحظ الفرق."}
+                </p>
+              </div>
+            </div>
           </div>
-          <p className="mt-3 text-sm">
-            المكان دلوقتي: <strong>{place}</strong>
-          </p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            <Slider label="الكتلة m" unit="kg" min={0.1} max={2} step={0.05} value={m} onChange={setM} />
-            <Slider label="صلابة السوستة k" unit="N/m" min={10} max={200} step={1} value={k} onChange={setK} />
-            <Slider label="السعة A" unit="cm" min={2} max={12} step={0.5} value={A * 100} onChange={(cm) => setA(cm / 100)} />
+
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <LiveValue symbol="T" name="الزمن الدوري" value={fmt(sim.T)} unit="s" />
+            <LiveValue symbol="f" name="التردد" value={fmt(sim.f)} unit="Hz" />
+            <LiveValue symbol="ω" name="التردد الزاوي" value={fmt(sim.omega)} unit="rad/s" />
+            <LiveValue symbol="E" name="الطاقة الكلية" value={fmt(sim.E)} unit="J" />
           </div>
-          <label className="mt-4 block text-sm">
-            <span className="flex justify-between">
-              <span>موضع الدورة</span>
-              <span dir="ltr">{fmt((sim.phase / sim.T) * 100, 0)}%</span>
-            </span>
-            <input
-              type="range"
-              dir="ltr"
-              min={0}
-              max={1000}
-              value={Math.round((sim.phase / sim.T) * 1000) % 1000}
-              onChange={(e) => {
-                setPlaying(false);
-                setPhase((Number(e.target.value) / 1000) * 2 * Math.PI);
-              }}
-              className="w-full"
-            />
-          </label>
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Read label="T" value={`${fmt(sim.T)} s`} />
-            <Read label="f" value={`${fmt(sim.f)} Hz`} />
-            <Read label="ω" value={`${fmt(sim.omega)} rad/s`} />
-            <Read label="E" value={`${fmt(sim.E)} J`} />
-            <Read label="x" value={`${fmt(sim.x)} m`} />
-            <Read label="v" value={`${fmt(sim.v)} m/s`} />
-            <Read label="a" value={`${fmt(sim.a)} m/s²`} />
-            <Read label="F" value={`${fmt(sim.F)} N`} />
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <LiveValue symbol="x" name="الإزاحة" value={fmt(sim.x)} unit="m" />
+            <LiveValue symbol="v" name="السرعة" value={fmt(sim.v)} unit="m/s" />
+            <LiveValue symbol="a" name="العجلة" value={fmt(sim.a)} unit="m/s²" />
+            <LiveValue symbol="F" name="قوة الإرجاع" value={fmt(sim.F)} unit="N" />
           </div>
-          <Note
-            level={level}
-            item={{
-              take: "القوة دايمًا تشد الجسم راجع للاتزان، والسرعة أكبر ما تكون هناك.",
-              weak: "لو سحبت الكتلة وسبتها، السوستة ترجّعها. كل ما تبعد، الشد أقوى. في النص سرعتها أعلى، وعند الطرف تقف لحظة وترجع.",
-              strong: "F = −kx و a = −ω²x. السالب اتجاه: عكس الإزاحة. عند x = ±A السرعة صفر والقوة والعجلة أكبر حاجة. عند x = 0 القوة والعجلة صفر، والسرعة v_max = ωA.",
-              sharp: "الإشارة مش ناتجة من التعويض؛ اتضافت عشان المحصلة نحو الاتزان. من غير السالب القوة تهرب بالجسم. v_max = ωA جاية من حفظ الطاقة عند الاتزان مش من قانون هوك، لأن هوك عند x = 0 بيدي F = 0 ومش بيقول قيمة السرعة.",
-            }}
-          />
         </section>
 
-        <Dictionary />
-        <Hooke level={level} k={k} />
-        <Period level={level} m={m} k={k} A={A} />
-        <Cycle level={level} simPhase={sim.phase} T={sim.T} />
-        <Energy level={level} sim={sim} />
-        <Examples
-          level={level}
-          onLoad={(nm, nk, nA) => {
-            setM(nm);
-            setK(nk);
-            setA(nA);
-            setPhase(0);
-            setPlaying(false);
-          }}
-        />
-        <WhatIf level={level} m={m} k={k} A={A} />
-        <RulerMetro
-          level={level}
-          ruler={ruler}
-          setRuler={setRuler}
-          metroM={metroM}
-          setMetroM={setMetroM}
-          metroK={metroK}
-          setMetroK={setMetroK}
-        />
-        <Origins level={level} />
-        <Quiz level={level} />
+        <section id="course" className="scroll-mt-5">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="section-kicker">رحلة التعلّم</div>
+              <h2 className="mt-2 text-2xl font-bold">الدرس من الصفر للاحتراف</h2>
+              <p className="mt-2 text-sm leading-7 text-muted">اختر طريقة العرض المناسبة لك، وافتح كل جزء عندما تكون مستعدًا.</p>
+            </div>
+            <div className="level-switch">
+              {([{ id: "weak", label: "ببساطة" }, { id: "strong", label: "للامتحان" }, { id: "sharp", label: "بعمق" }] as const).map((item) => (
+                <button key={item.id} type="button" onClick={() => setLevel(item.id)} className={level === item.id ? "active" : ""}>{item.label}</button>
+              ))}
+            </div>
+          </div>
+
+          <div className="tab-strip">
+            <button type="button" onClick={() => setTab("lesson")} className={tab === "lesson" ? "selected" : ""}><BookOpen size={16} /> شرح الدرس</button>
+            <button type="button" onClick={() => setTab("laws")} className={tab === "laws" ? "selected" : ""}><Waves size={16} /> القوانين والملخص</button>
+            <button type="button" onClick={() => setTab("practice")} className={tab === "practice" ? "selected" : ""}><CircleHelp size={16} /> اختبر نفسك</button>
+          </div>
+
+          {tab === "lesson" && <div className="mt-4 grid gap-3">
+            <LessonCard id="idea" number="01" title="يعني إيه حركة توافقية بسيطة؟" subtitle="الفكرة الأساسية" icon={<Waves size={19} />} defaultOpen>
+              <p>تخيّل جسمًا مربوطًا في سوستة. تسحبه قليلًا ثم تتركه؛ يتحرك يمينًا ويسارًا حول نقطة ثابتة اسمها <strong>موضع الاتزان</strong>.</p>
+              <Illustration type="motion" />
+              <p>نسميها حركة توافقية بسيطة عندما تكون قوة الإرجاع متناسبة طرديًا مع الإزاحة، وفي عكس اتجاهها.</p>
+              <Formula>F = −kx</Formula>
+              <Explain level={level} simple="كلما أبعدت الجسم عن المنتصف، زادت قوة السوستة التي تشده للمنتصف. وعندما يمر بالمنتصف تكون القوة صفرًا." exam="قوة الإرجاع تتناسب طرديًا مع الإزاحة وتكون في عكس اتجاهها: F = −kx." deep="السالب يعبّر عن الاتجاه لا عن مقدار الثابت. مقدار القوة |F| = k|x|، وk ثابت موجب." />
+            </LessonCard>
+            <LessonCard id="hooke" number="02" title="قانون هوك: لماذا يعود الجسم؟" subtitle="القوة والإزاحة" icon={<ArrowLeftRight size={19} />}>
+              <p>النابض لا يحب أن يظل مشدودًا أو مضغوطًا؛ فيؤثر بقوة تحاول إعادته لطوله الطبيعي. داخل حد المرونة، تزداد القوة بنفس نسبة زيادة الإزاحة.</p>
+              <Illustration type="hooke" />
+              <Formula>F = −kx　　a = −(k/m)x</Formula>
+              <div className="tip-card"><strong>مثال سريع:</strong> إذا كان k = 50 N/m وأزحنا الجسم 0.04 m، فإن مقدار القوة = 50 × 0.04 = 2 N، واتجاهها عكس الإزاحة.</div>
+              <Explain level={level} simple="لو سحبت السوستة مسافة أكبر، ستشدك بقوة أكبر. والسالب معناه أنها تشد عكس السحب." exam="k هي صلابة النابض ووحدتها N/m. عند x = 0 تكون F = 0، وعند x = ±A تكون القوة عظمى." deep="بالتعويض في قانون نيوتن F = ma نحصل على a = −(k/m)x، وهي صورة التسارع في الحركة التوافقية." />
+            </LessonCard>
+            <LessonCard id="period" number="03" title="الزمن الدوري والتردد" subtitle="كم تستغرق الاهتزازة؟" icon={<Activity size={19} />}>
+              <p><strong>الزمن الدوري T:</strong> الزمن اللازم لعمل اهتزازة كاملة. <strong>التردد f:</strong> عدد الاهتزازات الكاملة في الثانية.</p>
+              <Illustration type="period" />
+              <Formula>T = 2π√(m/k)　　f = 1/T　　ω = 2πf</Formula>
+              <div className="tip-card">زيادة الكتلة تجعل الاهتزاز أبطأ، وزيادة صلابة النابض تجعله أسرع. السعة لا تؤثر في T في النموذج المثالي.</div>
+              <Explain level={level} simple="الجسم الأثقل يحتاج وقتًا أطول ليكمل ذهابًا وعودة. أما السوستة الأقوى فترجعه أسرع." exam="T = 2π√(m/k)، وω = √(k/m)، وf = 1/T. لا تدخل السعة A في قانون الزمن الدوري." deep="من F = ma وF = −kx: a = −(k/m)x. وبالمقارنة مع a = −ω²x نجد ω² = k/m، ثم T = 2π/ω." />
+            </LessonCard>
+            <LessonCard id="energy" number="04" title="الطاقة: أين تذهب الحركة؟" subtitle="تبادل بين طاقة الوضع والحركة" icon={<Gauge size={19} />}>
+              <p>عند أقصى إزاحة تكون السرعة لحظيًا صفرًا والطاقة مخزنة في النابض. وعند الاتزان تتحول إلى طاقة حركة، وتصبح السرعة أكبر ما يمكن.</p>
+              <Illustration type="energy" />
+              <Formula>Ep = ½kx²　　Ek = ½mv²　　E = ½kA²</Formula>
+              <Explain level={level} simple="عند الطرف: الجسم واقف لحظة والسوستة مشدودة. في المنتصف: الجسم أسرع ما يمكن. الطاقة تتبادل بينهما." exam="في غياب الاحتكاك تظل الطاقة الميكانيكية ثابتة: E = Ep + Ek = ½kA²." deep="عند الطرف v = 0 فتكون E = ½kA². عند الاتزان x = 0 فتكون Ek = E، ومنها vmax = ωA." />
+            </LessonCard>
+          </div>}
+
+          {tab === "laws" && <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <LawCard title="قوانين الحركة" formula="x = A cos(ωt)" note="عند بدء الحركة من أقصى إزاحة موجبة." />
+            <LawCard title="التسارع" formula="a = −ω²x" note="يتناسب مع الإزاحة وعكس اتجاهها." />
+            <LawCard title="قوة الإرجاع" formula="F = −kx" note="قانون هوك داخل حد المرونة." />
+            <LawCard title="التردد الزاوي" formula="ω = √(k/m)" note="وحدته راديان لكل ثانية." />
+            <LawCard title="الزمن الدوري" formula="T = 2π√(m/k)" note="يزيد مع الكتلة ويقل مع صلابة النابض." />
+            <LawCard title="التردد" formula="f = 1/T = ω/2π" note="عدد الاهتزازات في الثانية." />
+            <LawCard title="السرعة العظمى" formula="vmax = ωA" note="تحدث عند موضع الاتزان." />
+            <LawCard title="الطاقة الكلية" formula="E = ½kA²" note="ثابتة عند إهمال الاحتكاك." />
+            <div className="summary-card md:col-span-2">
+              <h3 className="font-bold">خريطة الحل في الامتحان</h3>
+              <ol className="mt-3 grid gap-2 sm:grid-cols-2">
+                <li><b>1</b> استخرج m وk وA مع تحويل الوحدات.</li>
+                <li><b>2</b> احسب ω = √(k/m).</li>
+                <li><b>3</b> احسب T = 2π/ω أو f = 1/T.</li>
+                <li><b>4</b> حدد موضع الجسم لتعرف v وa وF والطاقة.</li>
+              </ol>
+            </div>
+          </div>}
+
+          {tab === "practice" && <div className="mt-4 rounded-3xl border border-line bg-white p-4 sm:p-6">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div><div className="section-kicker">تأكد من فهمك</div><h3 className="mt-1 text-xl font-bold">اختبار سريع</h3></div>
+              <span className="rounded-full bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-800">{score} / {quiz.length}</span>
+            </div>
+            <div className="grid gap-5">
+              {quiz.map((item, i) => <div key={item.q} className="border-b border-line pb-4">
+                <p className="font-semibold">{i + 1}. {item.q}</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {item.options.map((option, j) => <button type="button" key={option} onClick={() => setQuizAnswers((old) => ({ ...old, [i]: j }))} className={`quiz-option ${quizAnswers[i] === j ? j === item.answer ? "correct" : "incorrect" : ""}`}>{option}</button>)}
+                </div>
+                {quizAnswers[i] !== undefined && <p className="mt-2 flex items-start gap-2 text-sm text-muted"><CheckCircle2 size={16} className="mt-1 shrink-0 text-teal" />{item.why}</p>}
+              </div>)}
+            </div>
+            <button type="button" className="control-quiet mt-4" onClick={() => setQuizAnswers({})}><RotateCcw size={15} /> إعادة الاختبار</button>
+          </div>}
+        </section>
+
+        <section className="rounded-3xl border border-line bg-white p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><div className="section-kicker">اربط الشرح بالتجربة</div><h2 className="mt-1 text-xl font-bold">شاهد كيف تتغير الطاقة الآن</h2></div>
+            <a href="#lab" className="text-sm font-semibold text-teal">ارجع للمعمل ↑</a>
+          </div>
+          <div className="mt-5 grid gap-5 md:grid-cols-[1fr_1fr]">
+            <div className="space-y-4">
+              <EnergyBar label="طاقة الوضع المرونية" value={sim.Ep} total={sim.E} tone="copper" />
+              <EnergyBar label="طاقة الحركة" value={sim.Ek} total={sim.E} tone="teal" />
+              <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-muted">
+                <b className="text-ink">لاحظ:</b> حرّك الجسم في المعمل. عند الطرف تقترب طاقة الوضع من 100%، وعند المنتصف تقترب طاقة الحركة من 100%.
+              </div>
+            </div>
+            <EnergyDonut ep={sim.Ep} ek={sim.Ek} />
+          </div>
+        </section>
+
+        <footer className="py-4 text-center text-xs text-muted">
+          صُمّم للتعلّم بالتجربة · معمل الحركة التوافقية البسيطة
+        </footer>
       </main>
     </div>
   );
 }
 
-function LevelSwitch({ level, onChange }: { level: Level; onChange: (l: Level) => void }) {
-  return (
-    <div className="flex rounded-full border border-line bg-surface p-1">
-      {LEVELS.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          onClick={() => onChange(item.id)}
-          className={`min-h-11 rounded-full px-3 text-sm ${level === item.id ? "bg-teal text-surface" : ""}`}
-          title={item.hint}
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
-  );
+function HeroMetric({ value, label }: { value: string; label: string }) {
+  return <div className="rounded-2xl border border-white/15 bg-white/[0.07] p-3 backdrop-blur"><div className="text-xl font-bold text-teal-200">{value}</div><div className="mt-1 text-xs text-white/65">{label}</div></div>;
 }
 
-function Slider({
-  label,
-  unit,
-  min,
-  max,
-  step,
-  value,
-  onChange,
-}: {
-  label: string;
-  unit: string;
-  min: number;
-  max: number;
-  step: number;
-  value: number;
-  onChange: (n: number) => void;
-}) {
-  return (
-    <label className="block text-sm">
-      <span className="flex justify-between gap-2">
-        <span>{label}</span>
-        <span dir="ltr" className="font-medium text-teal">
-          {fmt(value, 2)} {unit}
-        </span>
-      </span>
-      <input
-        type="range"
-        dir="ltr"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full"
-      />
-    </label>
-  );
+function Parameter({ label, symbol, value, unit, min, max, step, onChange }: { label: string; symbol: string; value: number; unit: string; min: number; max: number; step: number; onChange: (v: number) => void }) {
+  return <label className="parameter-card">
+    <span className="flex items-center justify-between gap-2"><span className="text-sm font-semibold">{label}</span><span className="parameter-symbol">{symbol}</span></span>
+    <span className="mt-3 flex items-baseline gap-1" dir="ltr"><b className="text-2xl text-teal">{fmt(value, 2)}</b><small className="text-muted">{unit}</small></span>
+    <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="mt-2 w-full" dir="ltr" />
+    <span className="flex justify-between text-[10px] text-muted" dir="ltr"><span>{min}</span><span>{max}</span></span>
+  </label>;
 }
 
-function Read({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-bg px-3 py-2">
-      <div className="text-xs text-muted" dir="ltr">
-        {label}
-      </div>
-      <div className="font-medium" dir="ltr">
-        {value}
-      </div>
-    </div>
-  );
+function LiveValue({ symbol, name, value, unit }: { symbol: string; name: string; value: string; unit: string }) {
+  return <div className="metric-tile"><div className="flex items-center justify-between"><span className="text-xs text-muted">{name}</span><b className="metric-symbol">{symbol}</b></div><div className="mt-2 flex items-baseline gap-1" dir="ltr"><strong className="text-xl font-bold">{value}</strong><span className="text-[10px] text-muted">{unit}</span></div></div>;
 }
 
-function Note({ level, item }: { level: Level; item: Layer }) {
-  return (
-    <div className="mt-4 rounded-xl bg-teal-soft p-3 text-sm">
-      <p className="font-medium">{item.take}</p>
-      <p className="mt-1 text-ink/90">{body(level, item)}</p>
-    </div>
-  );
+function LessonCard({ id, number, title, subtitle, icon, children, defaultOpen = false }: { id: string; number: string; title: string; subtitle: string; icon: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
+  return <details id={id} className="lesson-card" open={defaultOpen}>
+    <summary><span className="chapter-number">{number}</span><span className="chapter-icon">{icon}</span><span className="min-w-0 flex-1"><small>{subtitle}</small><strong>{title}</strong></span><ChevronDown className="chapter-chevron" size={19} /></summary>
+    <div className="lesson-content">{children}</div>
+  </details>;
 }
 
-function Card({ id, title, children }: { id: string; title: string; children: ReactNode }) {
-  return (
-    <section id={id} className="rounded-2xl border border-line bg-surface p-4">
-      <h2 className="mb-3 text-lg font-semibold">{title}</h2>
-      {children}
-    </section>
-  );
+function Formula({ children }: { children: React.ReactNode }) {
+  return <div className="formula-display" dir="ltr">{children}</div>;
 }
 
-function Dictionary() {
-  const rows = [
-    ["x", "الإزاحة", "بعد الجسم دلوقتي عن الاتزان. يمين موجب وشمال سالب", "m"],
-    ["A", "السعة", "أكبر بعد يوصله الجسم. دايمًا موجبة", "m"],
-    ["T", "الزمن الدوري", "زمن اهتزازة كاملة: روح وارجع لنفس الحالة", "s"],
-    ["f", "التردد", "عدد الاهتزازات في ثانية", "Hz"],
-    ["ω", "التردد الزاوي", "كام راديان في الثانية. أكبر من f بمقدار 2π", "rad/s"],
-    ["k", "ثابت النابض", "صلابة السوستة. كل ما كبر، السوستة أقسى", "N/m"],
-    ["m", "الكتلة", "كتلة الجسم المهتز", "kg"],
-    ["F", "قوة الاستعادة", "تشد الجسم راجع للاتزان، عكس الإزاحة", "N"],
-    ["a", "العجلة", "تسارع نحو الاتزان", "m/s²"],
-    ["v", "السرعة", "سرعة اللحظة دي", "m/s"],
-    ["Ep", "طاقة الوضع", "متخزنة في السوستة وهي مشدودة أو مضغوطة", "J"],
-    ["Ek", "طاقة الحركة", "لأن الجسم بيتحرك", "J"],
-    ["E", "الطاقة الميكانيكية", "مجموعهما، ثابت لو مفيش احتكاك", "J"],
-  ];
-  return (
-    <Card id="symbols" title="قاموس الرموز">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[36rem] text-sm">
-          <thead>
-            <tr className="border-b border-line text-right text-muted">
-              <th className="py-2 font-medium">الرمز</th>
-              <th className="font-medium">اسمه</th>
-              <th className="font-medium">معناه</th>
-              <th className="font-medium">الوحدة</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r[0]} className="border-b border-line">
-                <td className="py-2 font-medium" dir="ltr">
-                  {r[0]}
-                </td>
-                <td>{r[1]}</td>
-                <td>{r[2]}</td>
-                <td dir="ltr">{r[3]}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="mt-3 text-sm" dir="ltr">
-        f = 1/T · ω = 2πf = 2π/T · T = 2π/ω
-      </p>
-    </Card>
-  );
+function Explain({ level, simple, exam, deep }: { level: Level; simple: string; exam: string; deep: string }) {
+  return <div className="explain-card"><div className="flex items-center gap-2 text-xs font-bold text-teal"><Lightbulb size={15} /> {level === "weak" ? "ببساطة" : level === "strong" ? "ركز في الامتحان" : "فهم أعمق"}</div><p className="mt-2 text-sm leading-7">{level === "weak" ? simple : level === "strong" ? exam : deep}</p></div>;
 }
 
-function Hooke({ level, k }: { level: Level; k: number }) {
-  const [xCm, setXCm] = useState(4);
-  const x = xCm / 100;
-  const F = -k * x;
-  return (
-    <Card id="hooke" title="قانون هوك">
-      <p className="text-sm" dir="ltr">
-        F = −kx · k = {fmt(k, 1)} N/m · F = {fmt(F, 2)} N
-      </p>
-      <div className="mt-3">
-        <Slider label="إزاحة التجربة" unit="cm" min={-12} max={12} step={0.5} value={xCm} onChange={setXCm} />
-      </div>
-      <p className="mt-2 text-sm">
-        {xCm === 0
-          ? "عند الاتزان القوة صفر."
-          : xCm > 0
-            ? "الجسم يمين الاتزان، فالقوة شمال (سالبة)."
-            : "الجسم شمال الاتزان، فالقوة يمين (موجبة)."}
-      </p>
-      <Note
-        level={level}
-        item={{
-          take: "قدّ الاستطالة تكون القوة، جوه حدود المرونة، والاتجاه دايمًا للاتزان.",
-          weak: "هوك جرّب: كل ما تشد السوستة أكتر، المقاومة تكبر بنفس النسبة. مش قانون اتنفخ من الكتاب فجأة.",
-          strong: "F = −kx. k ميل خط القوة مع الإزاحة، ووحدته N/m. السالب يعني القوة عكس x. الرسم خط يعدّي الأصل، وده صحيح جوه حدود المرونة بس.",
-          sharp: "القانون تجربة مش اشتقاق من نيوتن. الجملة اللاتينية معناها: قد الاستطالة تكون القوة. السالب اتضاف بالاتفاق عشان الاتجاه. لو المسألة قالت F = −30x يبقى k = 30، الرقم اللي قدام x هو الصلابة.",
-        }}
-      />
-    </Card>
-  );
+function LawCard({ title, formula, note }: { title: string; formula: string; note: string }) {
+  return <div className="law-card"><small>{title}</small><strong dir="ltr">{formula}</strong><p>{note}</p></div>;
 }
 
-function Period({ level, m, k, A }: { level: Level; m: number; k: number; A: number }) {
-  const T = periodOf(k, m);
-  const w = omegaOf(k, m);
-  const f = freqOf(k, m);
-  return (
-    <Card id="period" title="منين طلع زمن الاهتزازة">
-      <ol className="grid gap-2 text-sm">
-        <li className="rounded-xl bg-bg p-3" dir="ltr">
-          1) F = ma و F = −kx ⇒ a = −(k/m) x
-        </li>
-        <li className="rounded-xl bg-bg p-3" dir="ltr">
-          2) تعريف التوافقية: a = −ω²x ⇒ ω² = k/m
-        </li>
-        <li className="rounded-xl bg-bg p-3" dir="ltr">
-          3) T = 2π/ω ⇒ T = 2π √(m/k) = {fmt(T)} s
-        </li>
-      </ol>
-      <p className="mt-3 text-sm" dir="ltr">
-        ω = {fmt(w)} rad/s · f = {fmt(f)} Hz · A = {fmt(A)} m لا يدخل في T
-      </p>
-      <Note
-        level={level}
-        item={{
-          take: "الكتلة تبطّئ الاهتزازة، والسوستة القاسية تسرّعها. السعة ما تغيّرش الزمن.",
-          weak: "تخيّل أرجوحة: الطفل التقيل يتأخر، والحبل المشدود يرجعك أسرع. مسافة الدفعة الأولى مش هي اللي بتحدد الزمن، طول ما الحاجة ما اتكسرتش.",
-          strong: "T = 2π√(m/k). إذن T يزيد مع جذر الكتلة ويقل مع جذر الصلابة. A مش في القانون، فالسعة ما تغيّرش T جوه حدود المرونة. ω = √(k/m) و f = ω/(2π).",
-          sharp: "الخطوة الحاسمة مقارنة معاملين: a = −(k/m)x من نيوتن وهوك، و a = −ω²x من تعريف التوافقية. ω مش جاية من النابض لوحدها؛ 2π جاية من إن الدورة الكاملة = 2π راديان، والنابض بس بيحدد قيمة ω. لو اتغيرت m أو k اشتغل بالنسبة: T ∝ √m و T ∝ 1/√k.",
-        }}
-      />
-    </Card>
-  );
+function EnergyBar({ label, value, total, tone }: { label: string; value: number; total: number; tone: "teal" | "copper" }) {
+  const pct = total > 0 ? Math.max(0, Math.min(100, value / total * 100)) : 0;
+  return <div><div className="mb-2 flex justify-between text-sm"><b>{label}</b><span dir="ltr">{fmt(pct, 1)}%</span></div><div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${tone === "teal" ? "bg-teal" : "bg-orange-400"}`} style={{ width: `${pct}%` }} /></div></div>;
 }
 
-function Cycle({ level, simPhase, T }: { level: Level; simPhase: number; T: number }) {
-  const u = simPhase / T;
-  const rows = [
-    ["0", "+A", "0", "عظمى نحو الاتزان"],
-    ["T/4", "0", "عظمى", "0"],
-    ["T/2", "−A", "0", "عظمى نحو الاتزان"],
-    ["3T/4", "0", "عظمى عكس اللي فاتت", "0"],
-    ["T", "+A", "0", "زي الأول"],
-  ];
-  const active = u < 0.12 || u > 0.88 ? 0 : u < 0.37 ? 1 : u < 0.62 ? 2 : u < 0.87 ? 3 : 4;
-  return (
-    <Card id="cycle" title="شكل دورة واحدة">
-      <p className="mb-3 text-sm text-muted">لو بدأنا من أقصى اليمين. الصف الملوّن هو مكانك في المعمل.</p>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[28rem] text-sm">
-          <thead>
-            <tr className="border-b border-line text-muted">
-              <th className="py-2 text-right font-medium">اللحظة</th>
-              <th className="text-right font-medium">x</th>
-              <th className="text-right font-medium">v</th>
-              <th className="text-right font-medium">a</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={r[0]} className={i === active ? "bg-teal-soft" : "border-b border-line"}>
-                {r.map((c, j) => (
-                  <td key={`${r[0]}-${j}`} className="py-2" dir="ltr">
-                    {c}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <Wave u={u} />
-      <Note
-        level={level}
-        item={{
-          take: "السرعة صفر عند الطرف، والعجلة صفر في النص. المنحنيان مش منطبقين.",
-          weak: "الجسم يقف لحظة عند آخر السحبة، وبعدين يعدّي النص بأسرع ما يكون. العجلة عكس كده: أقوى عند الطرف وصفر في النص.",
-          strong: "فرق الطور بين الإزاحة والسرعة ربع دورة. v = 0 عند t = 0 و T/2 و T. a = 0 عند T/4 و 3T/4. |v|_max = ωA و |a|_max = ω²A و |F|_max = kA.",
-          sharp: "منحنى الجيب ومشتقته متزاحان بربع دورة، عشان كده ما بينطبقوش. بداية الكتاب من +A يعني x = A cos(ωt). مثال الجيب x = A sin(ωt) يبدأ من الاتزان مش من الطرف. متخلطش بين صورة المسألة.",
-        }}
-      />
-    </Card>
-  );
-}
-
-function Wave({ u }: { u: number }) {
-  const w = 320;
-  const h = 92;
-  const pts = (fn: (t: number) => number) => {
-    let d = "";
-    for (let i = 0; i <= 64; i++) {
-      const t = i / 64;
-      const x = 8 + t * (w - 16);
-      const y = h / 2 - fn(t) * 32;
-      d += `${i === 0 ? "M" : "L"} ${x} ${y} `;
-    }
-    return d;
-  };
-  const mx = 8 + u * (w - 16);
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="mt-3 w-full" role="img" aria-label="منحنى الإزاحة والسرعة">
-      <path d={pts((t) => Math.cos(2 * Math.PI * t))} fill="none" stroke="var(--color-teal)" strokeWidth="2" />
-      <path d={pts((t) => -Math.sin(2 * Math.PI * t))} fill="none" stroke="var(--color-copper)" strokeWidth="2" />
-      <line x1={mx} y1="8" x2={mx} y2={h - 8} stroke="var(--color-ink)" strokeDasharray="3 3" />
-      <text x="12" y="16" fill="var(--color-teal)" fontSize="11">
-        إزاحة
-      </text>
-      <text x="12" y="30" fill="var(--color-copper)" fontSize="11">
-        سرعة
-      </text>
+function EnergyDonut({ ep, ek }: { ep: number; ek: number }) {
+  const total = Math.max(ep + ek, 0.000001);
+  const p = ep / total;
+  return <div className="flex flex-col items-center justify-center rounded-2xl bg-slate-50 p-5">
+    <svg viewBox="0 0 220 170" className="w-full max-w-xs" role="img" aria-label="مخطط يوضح نسبة طاقة الوضع والحركة">
+      <circle cx="110" cy="78" r="54" fill="none" stroke="#e2e8f0" strokeWidth="18" />
+      <circle cx="110" cy="78" r="54" fill="none" stroke="#0e8178" strokeWidth="18" strokeDasharray={`${(1 - p) * 339} 339`} transform="rotate(-90 110 78)" strokeLinecap="round" />
+      <circle cx="110" cy="78" r="54" fill="none" stroke="#fb923c" strokeWidth="18" strokeDasharray={`${p * 339} 339`} strokeDashoffset={`${-(1 - p) * 339}`} transform="rotate(-90 110 78)" strokeLinecap="round" />
+      <text x="110" y="73" textAnchor="middle" fill="#0f172a" fontSize="19" fontWeight="700">{fmt(total, 2)}</text>
+      <text x="110" y="92" textAnchor="middle" fill="#64748b" fontSize="10">جول</text>
+      <text x="110" y="155" textAnchor="middle" fill="#64748b" fontSize="10">تقسيم الطاقة في اللحظة الحالية</text>
     </svg>
-  );
+    <div className="flex flex-wrap justify-center gap-4 text-xs"><span className="flex items-center gap-2"><i className="legend-dot bg-orange-400" /> طاقة الوضع</span><span className="flex items-center gap-2"><i className="legend-dot bg-teal" /> طاقة الحركة</span></div>
+  </div>;
 }
 
-function Energy({
-  level,
-  sim,
-}: {
-  level: Level;
-  sim: ReturnType<typeof stateAt>;
-}) {
-  const e = Math.max(sim.E, 1e-9);
-  return (
-    <Card id="energy" title="الطاقة بتتبادل ومش بتضيع">
-      <Bar label="طاقة الوضع" frac={sim.Ep / e} tone="copper" text={`${fmt(sim.Ep)} J`} />
-      <Bar label="طاقة الحركة" frac={sim.Ek / e} tone="teal" text={`${fmt(sim.Ek)} J`} />
-      <p className="mt-3 text-sm" dir="ltr">
-        Ep = ½kx² · Ek = ½mv² · E = ½kA² = {fmt(sim.E)} J
-      </p>
-      <p className="mt-2 text-sm">
-        عند نص السعة، الوضع ربع الطاقة والباقي حركة: لأن التربيع يخلّي (A/2)² = A²/4.
-      </p>
-      <Note
-        level={level}
-        item={{
-          take: "عند الطرف الطاقة كلها وضع، وفي النص كلها حركة. المجموع ثابت.",
-          weak: "السوستة المشدودة زي زنبرك لعبة مخزّن دفع. لما الجسم يعدّي النص، الدفع ده بقى سرعة. من غير احتكاك المجموع ما ينقصش.",
-          strong: "Ep أكبر عند ±A وصفر عند الاتزان. Ek عكسها. E = ½kA² ثابت. عند x = A/2 تبقى Ep = E/4 و Ek = 3E/4.",
-          sharp: "Ep = ½kx² من الشغل: القوة بتبدأ من صفر وتوصل kx، والمتوسط ½kx، في الشغل ½kx · x. الثابت بتاع E اتقاس عند الطرف لأن v = 0. ومنه عند الاتزان ½mv²_max = ½kA² فيطلع v_max = ωA لأن ω² = k/m. لو A اتضعفت، E تبقى 4 أمثال مش الضعف.",
-        }}
-      />
-    </Card>
-  );
-}
-
-function Bar({ label, frac, tone, text }: { label: string; frac: number; tone: "teal" | "copper"; text: string }) {
-  const pct = Math.max(0, Math.min(100, frac * 100));
-  return (
-    <div className="mt-3">
-      <div className="mb-1 flex justify-between text-sm">
-        <span>{label}</span>
-        <span dir="ltr">{text}</span>
-      </div>
-      <div className="h-3 overflow-hidden rounded-full bg-bg">
-        <div className={`h-full ${tone === "teal" ? "bg-teal" : "bg-copper"}`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-const EXAMPLES = [
-  {
-    title: "مثال 1",
-    m: 0.2,
-    k: 80,
-    A: 0.05,
-    lines: ["ω = √(80 / 0.20) = √400 = 20 rad/s", "T = 2 × 3.14 / 20 = 0.314 s ≈ 0.31 s", "f ≈ 3.18 Hz"],
-  },
-  {
-    title: "مثال 2",
-    m: 0.3,
-    k: 30,
-    A: 0.05,
-    lines: ["F = −30x يعني k = 30 N/m", "ω = √(30 / 0.30) = 10 rad/s", "T = 2 × 3.14 / 10 = 0.628 s ≈ 0.63 s"],
-  },
-  {
-    title: "مثال 3",
-    m: 0.5,
-    k: 2,
-    A: 0.05,
-    lines: ["F = −2.0x يعني k = 2.0 N/m", "T = 2π √(0.50 / 2.0) = 2π × 0.5 = π s ≈ 3.14 s"],
-  },
-];
-
-function Examples({
-  level,
-  onLoad,
-}: {
-  level: Level;
-  onLoad: (m: number, k: number, A: number) => void;
-}) {
-  return (
-    <Card id="examples" title="أمثلة الكتاب على المعمل">
-      <div className="grid gap-3 md:grid-cols-3">
-        {EXAMPLES.map((ex) => (
-          <article key={ex.title} className="rounded-xl border border-line p-3">
-            <h3 className="font-medium">{ex.title}</h3>
-            <p className="mt-1 text-sm text-muted" dir="ltr">
-              m = {ex.m} kg · k = {ex.k} N/m
-            </p>
-            <ul className="mt-2 space-y-1 text-sm" dir="ltr">
-              {ex.lines.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-            <button
-              type="button"
-              className="mt-3 min-h-11 rounded-full bg-teal px-3 text-sm text-surface"
-              onClick={() => onLoad(ex.m, ex.k, ex.A)}
-            >
-              جرّبها في المعمل
-            </button>
-          </article>
-        ))}
-      </div>
-      <article className="mt-3 rounded-xl border border-line p-3 text-sm">
-        <h3 className="font-medium">مثال الإزاحة</h3>
-        <p className="mt-1" dir="ltr">
-          x = 0.50 sin(8.0π t)
-        </p>
-        <p className="mt-1">الرقم بره الجيب سعة: A = 0.50 m. الرقم جوه قدام t هو ω = 8π rad/s. إذن T = 2π/ω = 0.25 s و f = 4 Hz. عند t = 0 الجيب صفر، فالجسم بادئ من الاتزان مش من الطرف.</p>
-      </article>
-      <Note
-        level={level}
-        item={{
-          take: "لو شفت رقمًا قدام x في القوة، الرقم ده هو k. ولو شفت جيب، بره سعة وجوه ω.",
-          weak: "متخافش من شكل المسألة. دور على الرقم اللي قدام الإزاحة، ده صلابة السوستة. بعد كده نفس قانون الزمن.",
-          strong: "من F = −(رقم)x خد k موجب. من x = A sin(ωt) أو cos: بره = A، جوه = ω، وبعدين T = 2π/ω. متحوّلش ω لتردد من غير قسمة على 2π.",
-          sharp: "في مثال 1 الكتاب استخدم 3.14 مش π كامل، عشان كده 0.314 s. الحل الدقيق 2π/20 ≈ 0.31416. الفرق مش غلط فيزيائي. وفي مثال الجيب، الطور صفر يعني البداية اتزان؛ لو المسألة بدأت من الطرف هتبقى جيب تمام أو زاوية طور π/2.",
-        }}
-      />
-    </Card>
-  );
-}
-
-function WhatIf({ level, m, k, A }: { level: Level; m: number; k: number; A: number }) {
-  const T = periodOf(k, m);
-  const w = omegaOf(k, m);
-  const rows = [
-    ["الكتلة 4m و k ثابت", `T' = ${fmt(2 * T)} s = 2T`, `f' = ${fmt(freqOf(k, m) / 2)} Hz = f/2`],
-    ["الصلابة 9k والكتلة ثابتة", `T' = ${fmt(T / 3)} s = T/3`, `ω' = ${fmt(3 * w)} = 3ω`],
-    ["السعة 2A و m,k ثابتين", `Fmax' = ${fmt(k * 2 * A)} N = 2 Fmax`, `E' = ${fmt(0.5 * k * (2 * A) ** 2)} J = 4E · T ما يتغيرش`],
-  ];
-  return (
-    <Card id="whatif" title="ماذا يحدث لو غيّرنا حاجة">
-      <p className="mb-3 text-sm text-muted">الأرقام من قيم المعمل دلوقتي، والنسبة هي اللي بتيجي في الامتحان.</p>
-      <div className="grid gap-3">
-        {rows.map((r) => (
-          <article key={r[0]} className="rounded-xl bg-bg p-3 text-sm">
-            <h3 className="font-medium">{r[0]}</h3>
-            <p className="mt-1" dir="ltr">
-              {r[1]}
-            </p>
-            <p dir="ltr">{r[2]}</p>
-          </article>
-        ))}
-      </div>
-      <Note
-        level={level}
-        item={{
-          take: "اسأل: اللي اتغير داخل الجذر ولا لأ؟ السعة ما تدخلش في الزمن، وتدخل مربعة في الطاقة.",
-          weak: "لو الوزن بقى 4 أمثال، الزمن يتضاعف مش 4 أمثال، لأن في جذر. لو السوستة أقسى 9 مرات، الزمن يبقى التلت. لو سحبت ضعف المسافة، الزمن زي ما هو بس الطاقة تكبر أربع مرات.",
-          strong: "T ∝ √m و T ∝ 1/√k. 4m → ×2. 9k → ÷3 و ω ×3. 2A → Fmax و amax ×2، و E ×4 لأن A²، و T ثابت.",
-          sharp: "متحسبش أرقام لو السؤال قال كام مثل. اكتب النسبة وخلاص: T'/T = √(m'/m). فخ السعة إن الطالب يضاعف الطاقة مع A، وينسى التربيع. وعلى الرسم: 4m تمدّد الموجة لنفس السعة ودورة 2T. 9k تحط 3 موجات في زمن الموجة القديمة.",
-        }}
-      />
-    </Card>
-  );
-}
-
-function RulerMetro({
-  level,
-  ruler,
-  setRuler,
-  metroM,
-  setMetroM,
-  metroK,
-  setMetroK,
-}: {
-  level: Level;
-  ruler: number;
-  setRuler: (n: number) => void;
-  metroM: number;
-  setMetroM: (n: number) => void;
-  metroK: number;
-  setMetroK: (n: number) => void;
-}) {
-  const keff = 40 * (20 / ruler) ** 3;
-  const meff = 0.04;
-  const fR = freqOf(keff, meff);
-  const Tm = periodOf(metroK, metroM);
-  return (
-    <Card id="cases" title="المسطرة وعربة المترو">
-      <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <h3 className="font-medium">مسطرة مثبّتة من طرف</h3>
-          <Slider label="الطول الحر" unit="cm" min={12} max={20} step={0.5} value={ruler} onChange={setRuler} />
-          <p className="mt-2 text-sm" dir="ltr">
-            k_eff ≈ {fmt(keff, 1)} N/m · f ≈ {fmt(fR, 1)} Hz
-          </p>
-          <p className="mt-1 text-sm">{ruler < 16 ? "أقصر: أصلب، تردد أعلى، صوت أحدّ." : "أطول: أصلب أقل، تردد أقل، صوت أغلظ."}</p>
-        </div>
-        <div>
-          <h3 className="font-medium">تعليق المترو</h3>
-          <Slider label="كتلة العربة وحمولتها" unit="kg" min={8000} max={24000} step={500} value={metroM} onChange={setMetroM} />
-          <Slider label="الصلابة المكافئة" unit="kN/m" min={80} max={400} step={10} value={metroK / 1000} onChange={(v) => setMetroK(v * 1000)} />
-          <p className="mt-2 text-sm" dir="ltr">
-            T = 2π √(m / K_eff) = {fmt(Tm)} s
-          </p>
-        </div>
-      </div>
-      <Note
-        level={level}
-        item={{
-          take: "نفس قانون النابض. اللي بيتغير اسم الصلابة: فعالة للمسطرة، ومكافئة للمترو.",
-          weak: "المسطرة القصيرة أصعب تتثني، فتهز أسرع وصوتها أحدّ. المترو التقيل يهتز أبطأ. المعدن نفسه ما اتغيرش.",
-          strong: "f = (1/2π) √(k_eff / m_eff). تقصير الطول الحر يزوّد k_eff فيرفع f. للمترو T = 2π√(m/K_eff): الحمولة تزوّد T، والسوست الأقسى تقلله.",
-          sharp: "مفيش اشتقاق جديد. قوة السوست مجتمعة لسه F ≈ −K_eff x، وبعدين نفس مقارنة العجلة. رقم المسطرة هنا نموذج تعليمي يتبع فكرة العارضة (الصلابة تتغير بشدة مع الطول) عشان تشوف الاتجاه، مش ثابتًا محفوظًا من الكتاب. اللي يتحفظ: التردد يزيد لما الصلابة الفعالة تزيد.",
-        }}
-      />
-    </Card>
-  );
-}
-
-const CHAIN = [
-  ["T = t/N و f = 1/T", "تعريف. مش متستنتج. عشر اهتزازات عشان الغلطة تتقسم."],
-  ["ω = 2π/T", "الدورة الكاملة = 2π راديان. مش جاية من النابض."],
-  ["F = −kx", "تجربة هوك. السالب اتجاه نحو الاتزان."],
-  ["a = −(k/m)x", "نيوتن F = ma مع هوك."],
-  ["ω = √(k/m)", "مقارنة a = −ω²x مع a = −(k/m)x."],
-  ["T = 2π√(m/k)", "تعويض ω في تعريف T."],
-  ["Ep = ½kx² و E = ½kA²", "شغل القوة المتوسطة، ثم الحفظ عند الطرف حيث v = 0."],
-  ["v_max = ωA", "الحفظ عند الاتزان: الحركة تاخد كل الطاقة."],
-];
-
-function Origins({ level }: { level: Level }) {
-  return (
-    <Card id="origins" title="كل قانون جاي منين">
-      <ol className="grid gap-2">
-        {CHAIN.map(([law, from], i) => (
-          <li key={law} className="rounded-xl border border-line p-3 text-sm">
-            <span className="text-teal">{i + 1}.</span> <span dir="ltr">{law}</span>
-            <p className="mt-1 text-muted">{from}</p>
-          </li>
-        ))}
-      </ol>
-      <Note
-        level={level}
-        item={{
-          take: "متبدّلش الترتيب: تعريف، وبعدين هوك، وبعدين نيوتن، وبعدين المقارنة، وبعدين الزمن، وبعدين الطاقة.",
-          weak: "كل رمز ليه معنى واحد. لو نسيت القانون، ارجع للمعنى: إيه اللي بيتقاس، وإيه اللي بيرجّع الجسم.",
-          strong: "احفظ السلسلة مش القوانين منفصلة. السؤال «علّل» غالبًا عايز الحلقة اللي قبل القانون، مش إعادة كتابته.",
-          sharp: "x = A sin(ωt) حل جاهز لمعادلة a = −ω²x، والكتاب مش بيطلب اشتقاقها بالتفاضل في الصفحة دي. مصدرها إن المشتقة التانية للجيب ترجّعه بإشارة سالب. الطور يتحدد من مكان الجسم عند t = 0.",
-        }}
-      />
-    </Card>
-  );
-}
-
-const QUIZ = [
-  {
-    q: "السرعة تكون أكبر ما يمكن فين؟",
-    options: ["عند موضع الاتزان", "عند أقصى إزاحة", "عند نص السعة بس"],
-    answer: 0,
-    why: {
-      weak: "في النص السوستة مش مخزّنة شد، فكل الطاقة بقى سرعة.",
-      strong: "عند x = 0 تبقى Ep = 0 و Ek عظمى و v = ωA. عند الطرف v = 0.",
-      sharp: "هوك عند الاتزان بيدي F = 0 ومش بيحدد السرعة. القيمة جاية من حفظ الطاقة.",
-    },
-  },
-  {
-    q: "عند أقصى إزاحة، قوة الاستعادة...",
-    options: ["صفر لأن الجسم واقف", "أكبر ما يمكن", "بتساوي الوزن"],
-    answer: 1,
-    why: {
-      weak: "واقف لحظة، بس السوستة مشدودة آخر حاجة، فالشد أقوى حاجة.",
-      strong: "|F| = k|x| وأكبر |x| هو A، فـ Fmax = kA. الوقوف اللحظي للسرعة مش للقوة.",
-      sharp: "فخ كلاسيكي: يربط F = 0 بالسكون. السكون عند الطرف لأن الاتجاه بيتغير، والقوة هناك عظمى وهي اللي هترجّعه.",
-    },
-  },
-  {
-    q: "الكتلة بقت 4m والنابض هو هو. الزمن الدوري...",
-    options: ["يتضاعف", "يبقى 4 أمثال", "ما يتغيرش"],
-    answer: 0,
-    why: {
-      weak: "أتقل أربعة مش معناه أبطأ أربعة. في جذر، فيبقى أبطأ مرتين.",
-      strong: "T ∝ √m و √4 = 2، إذن T' = 2T و f' = f/2.",
-      sharp: "ω كمان تبقى النص لأن m تحت الجذر في المقام. السعة على الرسم ما تتغيرش، والدورة تتمدد.",
-    },
-  },
-  {
-    q: "استبدلنا النابض بواحد صلابته 9k. الزمن الدوري...",
-    options: ["يبقى التلت", "يتضاعف 9 مرات", "ما يتغيرش لأن الكتلة ثابتة"],
-    answer: 0,
-    why: {
-      weak: "سوستة أقوى بترجّع أسرع، فاللفة تخلّص في وقت أقل.",
-      strong: "T ∝ 1/√k و √9 = 3، إذن T' = T/3 و ω' = 3ω.",
-      sharp: "على الرسم تظهر 3 موجات في زمن موجة قديمة، بنفس السعة. متردّدش التردد الزاوي مع التردد العادي.",
-    },
-  },
-  {
-    q: "السعة بقت 2A والكتلة والصلابة ثابتين. الطاقة الميكانيكية...",
-    options: ["تضعف", "تبقى 4 أمثال", "ما تتغيرش زي الزمن الدوري"],
-    answer: 1,
-    why: {
-      weak: "السحبة الضعف مش طاقة ضعف. التربيع يخلّيها أربع مرات.",
-      strong: "E = ½kA². A ×2 يعني A² ×4. أما T ما يتغيرش.",
-      sharp: "Fmax و amax بس هم اللي يتضاعفوا خطيًا مع A. الخلط بينهم وبين الطاقة هو فخ السؤال اللي بعد كده.",
-    },
-  },
-  {
-    q: "ليه نقيس زمن 10 اهتزازات ونقسم؟",
-    options: ["عشان السعة تكبر", "عشان نقلل أثر غلطة الساعة", "عشان k تتغير"],
-    answer: 1,
-    why: {
-      weak: "اهتزازة واحدة سريعة، وإيدك على الساعة تتأخر. عشر مرات تخلي الغلطة صغيرة.",
-      strong: "T = t/N. الغلطة المطلقة تتوزع على N فتصغّر الخطأ النسبي.",
-      sharp: "ده تعريف قياس، مش تصحيح لقانون الزمن. ما تدّعيش إن N غيّرت T الحقيقي.",
-    },
-  },
-  {
-    q: "القوة F = −30x. ثابت الصلابة يساوي...",
-    options: ["−30", "30", "15"],
-    answer: 1,
-    why: {
-      weak: "السالب بس بيقول الاتجاه. الرقم الموجب هو قساوة السوستة.",
-      strong: "قارن بـ F = −kx. معامل x هو k = 30 N/m.",
-      sharp: "متدخلش السالب في الجذر. ω و T و k بيتطلعوا موجبين، والإشارة تترجع لما تحسب اتجاه F أو a.",
-    },
-  },
-  {
-    q: "في x = 0.50 sin(8π t)، الزمن الدوري...",
-    options: ["0.50 s", "8π s", "0.25 s"],
-    answer: 2,
-    why: {
-      weak: "0.50 هي أبعد مسافة، مش الزمن. الزمن يطلع من الرقم اللي جوه.",
-      strong: "A = 0.50 m و ω = 8π. T = 2π/ω = 2π/(8π) = 0.25 s.",
-      sharp: "الجيب صفر عند t = 0، فالبداية اتزان. لو بدأت من الطرف كانت الصورة جيب تمام أو طور مختلف.",
-    },
-  },
-];
-
-function Quiz({ level }: { level: Level }) {
-  const [picks, setPicks] = useState<Record<number, number>>({});
-  const score = useMemo(
-    () => QUIZ.reduce((s, q, i) => s + (picks[i] === q.answer ? 1 : 0), 0),
-    [picks],
-  );
-  const done = Object.keys(picks).length === QUIZ.length;
-  return (
-    <Card id="quiz" title="تدريب سريع">
-      <div className="grid gap-4">
-        {QUIZ.map((q, i) => {
-          const pick = picks[i];
-          return (
-            <article key={q.q}>
-              <h3 className="text-sm font-medium">
-                {i + 1}. {q.q}
-              </h3>
-              <div className="mt-2 grid gap-2">
-                {q.options.map((op, j) => {
-                  const on = pick === j;
-                  const good = pick !== undefined && j === q.answer;
-                  const bad = on && j !== q.answer;
-                  return (
-                    <button
-                      key={op}
-                      type="button"
-                      onClick={() => setPicks((p) => ({ ...p, [i]: j }))}
-                      className={`min-h-11 rounded-xl border px-3 text-right text-sm ${
-                        good ? "border-teal bg-teal-soft" : bad ? "border-copper bg-copper-soft" : "border-line"
-                      }`}
-                    >
-                      {op}
-                    </button>
-                  );
-                })}
-              </div>
-              {pick !== undefined && <p className="mt-2 text-sm text-muted">{q.why[level]}</p>}
-            </article>
-          );
-        })}
-      </div>
-      {done && (
-        <p className="mt-4 rounded-xl bg-teal-soft p-3 text-sm font-medium">
-          نتيجتك {score} من {QUIZ.length}. ارجع للمعمل وغيّر الطبقة لو حابب تشوف نفس الإجابة بعمق تاني.
-        </p>
-      )}
-    </Card>
-  );
+function Illustration({ type }: { type: "motion" | "hooke" | "period" | "energy" }) {
+  if (type === "motion") return <div className="diagram-card"><svg viewBox="0 0 640 150" className="w-full" role="img" aria-label="مواضع الجسم الثلاثة في الاهتزاز"><line x1="90" y1="95" x2="550" y2="95" stroke="#cbd5e1" strokeWidth="3" strokeDasharray="6 7" /><line x1="320" y1="22" x2="320" y2="112" stroke="#0e8178" strokeDasharray="4 5" strokeWidth="2" /><g fill="#0e8178"><circle cx="120" cy="95" r="17" /><circle cx="320" cy="95" r="17" /><circle cx="520" cy="95" r="17" /></g><g fill="#334155" fontSize="15" textAnchor="middle"><text x="120" y="132">−A</text><text x="320" y="132">الاتزان</text><text x="520" y="132">+A</text></g><path d="M150 58 H285 M355 58 H490" stroke="#f97316" strokeWidth="3" strokeLinecap="round" /><path d="m278 51 8 7-8 7 M483 51 491 58 483 65" stroke="#f97316" fill="none" strokeWidth="3" strokeLinecap="round" /></svg><p className="text-center text-xs text-muted">الجسم يتحرك ذهابًا وإيابًا حول موضع الاتزان.</p></div>;
+  if (type === "hooke") return <div className="diagram-card"><svg viewBox="0 0 640 190" className="w-full" role="img" aria-label="رسم بياني خطي لقانون هوك"><line x1="70" y1="95" x2="575" y2="95" stroke="#94a3b8" strokeWidth="2" /><line x1="320" y1="18" x2="320" y2="168" stroke="#94a3b8" strokeWidth="2" /><path d="M120 25 520 165" stroke="#0e8178" strokeWidth="4" strokeLinecap="round" /><circle cx="320" cy="95" r="5" fill="#f97316" /><g fill="#64748b" fontSize="13"><text x="575" y="115">x</text><text x="334" y="25">F</text><text x="326" y="113">0</text></g><text x="100" y="20" fill="#0e8178" fontSize="14">F = −kx</text></svg><p className="text-center text-xs text-muted">كلما زادت الإزاحة، زاد مقدار القوة في الاتجاه العكسي.</p></div>;
+  if (type === "period") return <div className="diagram-card"><svg viewBox="0 0 640 190" className="w-full" role="img" aria-label="منحنى جيبي يوضح دورة كاملة"><line x1="38" y1="95" x2="610" y2="95" stroke="#cbd5e1" strokeWidth="2" /><path d={Array.from({ length: 101 }, (_, i) => `${i ? "L" : "M"} ${40 + i * 5.6} ${95 - 60 * Math.cos(i / 100 * 2 * Math.PI)}`).join(" ")} fill="none" stroke="#0e8178" strokeWidth="4" strokeLinecap="round" /><g stroke="#f97316" strokeWidth="2"><line x1="40" y1="24" x2="40" y2="166" strokeDasharray="4 4" /><line x1="600" y1="24" x2="600" y2="166" strokeDasharray="4 4" /><path d="M40 151 V160 H600 V151" fill="none" /></g><text x="320" y="180" fill="#c2410c" textAnchor="middle" fontSize="14">زمن دورة كاملة = T</text></svg><p className="text-center text-xs text-muted">من قمة إلى القمة التالية: اهتزازة كاملة.</p></div>;
+  return <div className="diagram-card"><svg viewBox="0 0 640 160" className="w-full" role="img" aria-label="تبادل الطاقة بين الوضع والحركة"><rect x="30" y="20" width="580" height="22" rx="11" fill="#ffedd5" /><rect x="30" y="20" width="580" height="22" rx="11" fill="#fb923c" /><rect x="30" y="78" width="580" height="22" rx="11" fill="#ccfbf1" /><rect x="30" y="78" width="290" height="22" rx="11" fill="#0e8178" /><g fill="#475569" fontSize="13"><text x="30" y="14">عند الطرف: طاقة وضع أكبر</text><text x="30" y="72">في المنتصف: طاقة حركة أكبر</text><text x="320" y="132" textAnchor="middle">مجموع الطاقة ثابت في الحالتين</text></g></svg><p className="text-center text-xs text-muted">الطاقة تنتقل بين الوضع والحركة ولا تختفي.</p></div>;
 }
