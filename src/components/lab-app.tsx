@@ -15,7 +15,7 @@ import {
   Sparkles,
   Waves,
 } from "lucide-react";
-import { SpringStage } from "@/components/spring-stage";
+import { SpringScene, PendulumExperiment } from "@/components/realistic-lab-stage";
 import {
   fmt,
   freqOf,
@@ -141,7 +141,7 @@ export function LabApp() {
                 <span className="visual-label"><span className="live-dot" /> المحاكاة الحية</span>
                 <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-slate-600">{currentPosition}</span>
               </div>
-              <SpringStage x={sim.x} A={A / 100} F={sim.F} v={sim.v} />
+              <SpringScene x={sim.x} A={A / 100} F={sim.F} v={sim.v} />
               <div className="mt-2 flex items-center justify-between text-xs text-muted">
                 <span>موضع الجسم خلال الدورة</span>
                 <span dir="ltr" className="font-semibold text-teal">{percent}%</span>
@@ -175,6 +175,8 @@ export function LabApp() {
             <LiveValue symbol="F" name="قوة الإرجاع" value={fmt(sim.F)} unit="N" />
           </div>
         </section>
+
+        <PendulumExperiment />
 
         <section id="course" className="scroll-mt-5">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">

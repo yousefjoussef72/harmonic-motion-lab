@@ -73,3 +73,9 @@ input[type="range"] { accent-color: #0e8178; height: 1.5rem; }
 .legend-dot { display:inline-block;width:9px;height:9px;border-radius:50%; }
 @media (max-width:640px) { .orbit-one { right:-280px; }.orbit-two { right:-100px; }.hero-shell .max-w-6xl { padding-bottom:34px; }.lesson-card summary { gap:9px;padding:12px; }.chapter-icon { width:36px;height:36px; }.lesson-content { padding:14px; } }
 @media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*::before,*::after { animation-duration:.01ms!important;transition-duration:.01ms!important; } }
+
+.realistic-stage { position:relative; overflow:hidden; border:1px solid #18384e; border-radius:18px; background:#071522; box-shadow:inset 0 0 40px rgba(0,0,0,.28),0 12px 32px rgba(8,28,42,.16); }
+.realistic-stage canvas { display:block; width:100%; height:clamp(230px,42vw,390px); outline:none; }
+.stage-hud { position:absolute; top:12px; right:12px; left:12px; display:flex; justify-content:space-between; gap:8px; pointer-events:none; }
+.stage-hud span { border:1px solid rgba(165,220,241,.2); border-radius:999px; background:rgba(4,17,29,.68); padding:6px 10px; color:#d9f2ff; font-size:11px; backdrop-filter:blur(8px); }
+.stage-caption { position:absolute; right:12px; bottom:10px; left:12px; color:rgba(220,241,250,.65); text-align:center; font-size:10px; pointer-events:none; }
