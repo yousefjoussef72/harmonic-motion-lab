@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 import { fmt } from "@/lib/physics";
+import { Lightbulb, Pause, Play, RotateCcw } from "lucide-react";
 
 type SpringProps = { x: number; A: number; F: number; v: number };
 type PendulumProps = { theta: number; length: number; mass: number };
