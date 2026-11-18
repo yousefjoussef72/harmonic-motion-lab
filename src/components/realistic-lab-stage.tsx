@@ -96,14 +96,21 @@ function metal(color = "#9bb7c9", roughness = 0.24) {
 function makeSpringGeometry(startX: number, endX: number) {
   const points: THREE.Vector3[] = [];
   const turns = 13;
-  const count = 260;
+  const count = 390;
   const springY = 0.45;
   for (let i = 0; i <= count; i++) {
     const t = i / count;
-    const a = t * turns * Math.PI * 2;
-    points.push(new THREE.Vector3(startX + (endX - startX) * t, springY + Math.cos(a) * 0.105, Math.sin(a) * 0.105));
+    const angle = t * turns * Math.PI * 2;
+    // Fade the coil radius to zero at both ends so the wire meets its mounts cleanly.
+    const endFade = Math.min(1, t * 18, (1 - t) * 18);
+    const radius = 0.105 * Math.max(0, endFade);
+    points.push(new THREE.Vector3(
+      startX + (endX - startX) * t,
+      springY + Math.cos(angle) * radius,
+      Math.sin(angle) * radius
+    ));
   }
-  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 240, 0.026, 10, false);
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 360, 0.026, 10, false);
 }
 
 export function SpringScene({ x, A, F, v }: SpringProps) {
@@ -137,9 +144,20 @@ export function SpringScene({ x, A, F, v }: SpringProps) {
     const cap = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.035, 0.59), new THREE.MeshStandardMaterial({ color: "#72d7ff", metalness: 0.48, roughness: 0.2 }));
     cap.position.y = 0.3;
     block.add(cap);
-    const spring = new THREE.Mesh(makeSpringGeometry(-2.04, 0.62), metal("#c9d7e1", 0.17));
+    const springMaterial = metal("#d5e0e8", 0.14);
+    const spring = new THREE.Mesh(makeSpringGeometry(-2.04, 0.62), springMaterial);
     spring.name = "spring-coil";
     scene.add(spring);
+    // Visible mounting points make the spring visibly fixed to the wall and moving block.
+    const mountGeometry = new THREE.SphereGeometry(0.075, 20, 16);
+    const wallMount = new THREE.Mesh(mountGeometry, metal("#e0e8ee", 0.2));
+    wallMount.position.set(-2.04, 0.45, 0);
+    wallMount.name = "spring-wall-mount";
+    scene.add(wallMount);
+    const blockMount = new THREE.Mesh(mountGeometry, metal("#e0e8ee", 0.2));
+    blockMount.position.set(-0.335, 0, 0);
+    blockMount.name = "spring-block-mount";
+    block.add(blockMount);
     const force = new THREE.ArrowHelper(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(1, 0.98, 0), 0.55, 0xffa04d, 0.18, 0.12);
     force.name = "spring-force";
     scene.add(force);
