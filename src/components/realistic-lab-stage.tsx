@@ -96,13 +96,14 @@ function metal(color = "#9bb7c9", roughness = 0.24) {
 function makeSpringGeometry(startX: number, endX: number) {
   const points: THREE.Vector3[] = [];
   const turns = 13;
-  const count = 220;
+  const count = 260;
+  const springY = 0.45;
   for (let i = 0; i <= count; i++) {
     const t = i / count;
     const a = t * turns * Math.PI * 2;
-    points.push(new THREE.Vector3(startX + (endX - startX) * t, 1.08 + Math.cos(a) * 0.115, Math.sin(a) * 0.115));
+    points.push(new THREE.Vector3(startX + (endX - startX) * t, springY + Math.cos(a) * 0.105, Math.sin(a) * 0.105));
   }
-  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 200, 0.026, 8, false);
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 240, 0.026, 10, false);
 }
 
 export function SpringScene({ x, A, F, v }: SpringProps) {
@@ -129,17 +130,17 @@ export function SpringScene({ x, A, F, v }: SpringProps) {
     scene.add(foot);
     const block = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.58, 0.72), blue);
     block.name = "spring-block";
-    block.position.set(0.95, 1.08, 0);
+    block.position.set(0.95, 0.45, 0);
     block.castShadow = true;
     block.receiveShadow = true;
     scene.add(block);
     const cap = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.035, 0.59), new THREE.MeshStandardMaterial({ color: "#72d7ff", metalness: 0.48, roughness: 0.2 }));
     cap.position.y = 0.3;
     block.add(cap);
-    const spring = new THREE.Mesh(makeSpringGeometry(-2.02, 0.56), metal("#c9d7e1", 0.17));
+    const spring = new THREE.Mesh(makeSpringGeometry(-2.04, 0.62), metal("#c9d7e1", 0.17));
     spring.name = "spring-coil";
     scene.add(spring);
-    const force = new THREE.ArrowHelper(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(1, 1.62, 0), 0.55, 0xffa04d, 0.18, 0.12);
+    const force = new THREE.ArrowHelper(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(1, 0.98, 0), 0.55, 0xffa04d, 0.18, 0.12);
     force.name = "spring-force";
     scene.add(force);
     const lamp = new THREE.PointLight("#159bd8", 7, 5);
@@ -156,11 +157,11 @@ export function SpringScene({ x, A, F, v }: SpringProps) {
     if (block) block.position.x = blockX;
     if (spring && Math.abs(p.x - lastX.current) > 0.0008) {
       spring.geometry.dispose();
-      spring.geometry = makeSpringGeometry(-2.02, blockX - 0.39);
+      spring.geometry = makeSpringGeometry(-2.04, blockX - 0.33);
       lastX.current = p.x;
     }
     if (force) {
-      force.position.set(blockX, 1.62, 0);
+      force.position.set(blockX, 0.98, 0);
       force.setDirection(new THREE.Vector3(p.F >= 0 ? 1 : -1, 0, 0));
       force.setLength(0.25 + Math.min(Math.abs(p.F) / 60, 0.85), 0.17, 0.12);
       force.visible = Math.abs(p.F) > 0.02;
