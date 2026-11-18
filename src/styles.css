@@ -79,3 +79,48 @@ input[type="range"] { accent-color: #0e8178; height: 1.5rem; }
 .stage-hud { position:absolute; top:12px; right:12px; left:12px; display:flex; justify-content:space-between; gap:8px; pointer-events:none; }
 .stage-hud span { border:1px solid rgba(165,220,241,.2); border-radius:999px; background:rgba(4,17,29,.68); padding:6px 10px; color:#d9f2ff; font-size:11px; backdrop-filter:blur(8px); }
 .stage-caption { position:absolute; right:12px; bottom:10px; left:12px; color:rgba(220,241,250,.65); text-align:center; font-size:10px; pointer-events:none; }
+
+/* Full-site night theme: keep the same layout and teal identity, reduce glare. */
+:root {
+  color-scheme: dark;
+  --color-bg: #081219;
+  --color-surface: #101e27;
+  --color-ink: #e5eef1;
+  --color-muted: #9aafb7;
+  --color-line: #293d47;
+  --color-teal: #42c4b2;
+  --color-teal-soft: #173b3b;
+  --color-copper: #f09a68;
+  --color-copper-soft: #3a2922;
+}
+html, body { background: #081219; color: #e5eef1; }
+.lab-panel, .parameter-card, .lesson-card, .law-card {
+  background: #101e27; border-color: #293d47; color: #e5eef1;
+}
+.visual-well, .diagram-card {
+  background: linear-gradient(145deg, #142630, #101d26); border-color: #2a424d;
+}
+.metric-tile { background: #14232c; border-color: #2a414b; }
+.control-quiet, .level-switch { background: #172832; border-color: #304650; color: #d9e7eb; }
+.level-switch button { color: #a9bbc1; }
+.level-switch button.active, .tab-strip button.selected {
+  background: #17413e; color: #7ce0d0;
+}
+.tab-strip { border-color: #293d47; }
+.tab-strip button { color: #a3b6bd; }
+.lesson-card summary { color: #e5eef1; }
+.lesson-content { border-color: #293d47; color: #d2e0e4; }
+.formula-display { background: #153632; border-color: #28665e; color: #9aeee0; }
+.explain-card { background: #142f2d; color: #c9e9e3; }
+.tip-card { background: #33271f; color: #f2c5a7; }
+.law-card strong { color: #75d9cb; }
+.law-card small, .law-card p { color: #a5b8bf; }
+.quiz-option { background: #14232c; border-color: #304650; color: #dbe7ea; }
+.quiz-option.correct { background: #153b35; border-color: #278b7c; color: #a3eadc; }
+.quiz-option.incorrect { background: #3b2a22; border-color: #a96039; color: #ffd0b2; }
+.parameter-symbol, .chapter-icon, .metric-symbol {
+  background: #173b3b; color: #72d9cb;
+}
+input[type="range"] { accent-color: #42c4b2; }
+a { color: #78d9cd; }
+::selection { background: #23675f; color: #fff; }
