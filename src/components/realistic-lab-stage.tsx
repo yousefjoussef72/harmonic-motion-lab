@@ -173,7 +173,7 @@ export function SpringScene({ x, A, F, v }: SpringProps) {
     const spring = scene.getObjectByName("spring-coil") as THREE.Mesh | undefined;
     const force = scene.getObjectByName("spring-force") as THREE.ArrowHelper | undefined;
     if (block) block.position.x = blockX;
-    if (spring && Math.abs(p.x - lastX.current) > 0.0008) {
+    if (spring && (!Number.isFinite(lastX.current) || Math.abs(p.x - lastX.current) > 0.0008)) {
       spring.geometry.dispose();
       spring.geometry = makeSpringGeometry(-2.04, blockX - 0.33);
       lastX.current = p.x;
