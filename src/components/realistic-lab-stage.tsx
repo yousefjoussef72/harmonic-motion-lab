@@ -246,6 +246,21 @@ export function PendulumScene({ theta, length, mass }: PendulumProps) {
   );
 }
 
+function LiveValue({ symbol, name, value, unit }: { symbol: string; name: string; value: string; unit: string }) {
+  return (
+    <div className="metric-tile">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted">{name}</span>
+        <span className="font-semibold text-teal" dir="ltr">{symbol}</span>
+      </div>
+      <div className="mt-2 flex items-baseline gap-1" dir="ltr">
+        <span className="text-xl font-bold tabular-nums">{value}</span>
+        <span className="text-xs text-muted">{unit}</span>
+      </div>
+    </div>
+  );
+}
+
 function Parameter({ label, symbol, value, min, max, step, unit, onChange }: {
   label: string; symbol: string; value: number; min: number; max: number; step: number; unit: string; onChange: (v: number) => void;
 }) {
